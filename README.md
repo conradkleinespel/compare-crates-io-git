@@ -1,8 +1,12 @@
 # Comparing crates.io with Git repository contents
 
-Following the attempt to introduce a backdoor into `xz`, I'm exploring ways to update Rust dependencies in a secure way.
+Following the attempt to introduce a backdoor into `xz`, I'm exploring ways to update Rust dependencies in a secure way. This projects aims to surface differences between what is in public git repositories versus what is published on crates.io for further analysis.
 
-This projects aims to detect differences between what's published on Crates.io versus what's publicly readable on Github.
+## What it does
+
+- Warns if the commit used to package the crate is not present in the default branch on the public git repository;
+- Warns if the crate was built with the `--allow-dirty` option;
+- Shows file differences between the archive distributed via crates.io and the contents of the public git repository, trying to minimize false positives where possible.
 
 ## How to use
 
