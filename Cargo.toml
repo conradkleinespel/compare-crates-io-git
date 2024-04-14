@@ -1,0 +1,15 @@
+[package]
+name = "compare-crates-io-git"
+version = "0.1.0"
+edition = "2021"
+publish = false
+
+[dependencies]
+tempfile = "3.10.1"
+toml = "0.8.12"
+serde = { version = "1.0.197", features = ["derive"] }
+url = "2.5.0"
+git2 = "0.18.3"
+reqwest = {  version = "0.12.3", features = ["blocking"] }
+tar = "0.4.40"
+flate2 = "1.0.28"
