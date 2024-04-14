@@ -5,6 +5,7 @@ use std::env::args;
 use std::fs::File;
 use std::io::{Cursor, Read};
 use std::path::Path;
+use std::process::Command;
 use tar::Archive;
 use url::Url;
 
@@ -63,10 +64,17 @@ fn main() {
     match get_expected_sha1_from_crate(crates_io_path.as_path()) {
         Some(sha1) => {
             println!("Sha1 announced in crates.io is {}", sha1);
-            if !sha1_in_commit_history_on_default_branch_with_revwalk(&repository, &head, sha1.as_str()) {
+            let commit_in_revwalk = sha1_in_commit_history_on_default_branch_with_revwalk(&repository, &head, sha1.as_str());
+            let commit_in_descendants = sha1_in_commit_history_on_default_branch_with_descendants(&repository, &head, sha1.as_str());
+            if commit_in_revwalk && commit_in_descendants {
+                println!("Commit is in history, checking it out");
+                let commit = repository.find_commit(Oid::from_str(sha1.as_str()).unwrap()).unwrap();
+                repository.checkout_tree(commit.as_object(), None).unwrap();
+            }
+            if !commit_in_revwalk {
                 println!("Commit not in default branch history (using revwalk)")
             }
-            if !sha1_in_commit_history_on_default_branch_with_descendants(&repository, &head, sha1.as_str()) {
+            if !commit_in_descendants {
                 println!("Commit not in default branch history (using descendants)")
             }
         }
@@ -74,6 +82,30 @@ fn main() {
             println!("No sha1 announced in crates.io, crate packaged with --allow-dirty");
         }
     }
+
+    show_diffs(crates_io_path.as_path(), git_tempdir.into_path().join(subpath).as_path());
+}
+
+fn show_diffs(crates_io_path: &Path, git_path: &Path) {
+    println!("Diffing {} and {}", crates_io_path.to_str().unwrap(), git_path.to_str().unwrap());
+
+    let mut cmd = Command::new("bash");
+
+    cmd.args([
+        "-c",
+        format!("diff -qr {} {} \\
+            | grep -v '^Only in {}' \\
+            | grep -v '^Only in {}: Cargo.toml.orig$' \\
+            | grep -v '^Only in {}: .cargo_vcs_info.json$'",
+            crates_io_path.to_str().unwrap(),
+            git_path.to_str().unwrap(),
+            git_path.to_str().unwrap(),
+            crates_io_path.to_str().unwrap(),
+            crates_io_path.to_str().unwrap(),
+        ).as_str()
+    ]);
+
+    cmd.status().unwrap();
 }
 
 fn sha1_in_commit_history_on_default_branch_with_revwalk(
