@@ -283,11 +283,12 @@ fn get_repository_and_subpath_from_repository_url(crates_io_path: &Path) -> (Opt
             .collect();
         return (
             Some(format!(
-                "{}://{}/{}/{}.git",
+                "{}://{}/{}/{}{}",
                 url_parsed.scheme(),
                 url_parsed.host_str().unwrap(),
                 paths[1],
                 paths[2],
+                if paths[2].ends_with(".git") { "" } else { ".git" }
             )),
             if paths.len() >= 6 {
                 // Repository URLs such as https://github.com/org/repo/tree/branch-name/some/path/here
@@ -300,10 +301,11 @@ fn get_repository_and_subpath_from_repository_url(crates_io_path: &Path) -> (Opt
 
     (
         Some(format!(
-            "{}://{}{}.git",
+            "{}://{}{}{}",
             url_parsed.scheme(),
             url_parsed.host_str().unwrap(),
             url_parsed.path(),
+            if url_parsed.path().ends_with(".git") { "" } else { ".git" }
         )),
         None,
     )
