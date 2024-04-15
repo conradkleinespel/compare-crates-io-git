@@ -6,7 +6,8 @@ Following the attempt to introduce a backdoor into `xz`, I'm exploring ways to u
 
 - Warns if the commit used to package the crate is not present in the default branch on the public git repository;
 - Warns if the crate was built with the `--allow-dirty` option;
-- Shows file differences between the archive distributed via crates.io and the contents of the public git repository, trying to minimize false positives where possible.
+- Shows file differences between the archive distributed via crates.io and the contents of the public git repository, trying to minimize false positives where possible;
+- Warns if the crate uses a non-standard build script, which could be used to hide build-steps from tools looking only at `build.rs`.
 
 ## How to use
 
