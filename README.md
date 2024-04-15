@@ -51,4 +51,19 @@ cargo run web-sys 0.3.67
 #Files /tmp/.tmpcrjvBa/web-sys-0.3.67/Cargo.toml and /tmp/.tmpYeyJ5e/crates/web-sys/Cargo.toml differ
 #Files /tmp/.tmpcrjvBa/web-sys-0.3.67/src/features/gen_AddEventListenerOptions.rs and /tmp/.tmpYeyJ5e/crates/web-sys/src/features/gen_AddEventListenerOptions.rs differ
 #...
+
+cargo run aes 0.8.4
+
+#Downloading aes/0.8.4 to /tmp/.tmpPd1yB9
+#Repository is https://github.com/RustCrypto/block-ciphers.git, subpath is None
+#Cloned repository to /tmp/.tmpuHioNc
+#Default branch is master
+#Sha1 announced in crates.io is f2dbee516b4d0cf4cb4f3045d09e35b5fd80087b
+#Commit not in default branch history (using revwalk)
+#Commit not in default branch history (using descendants)
+#No crate found at /tmp/.tmpuHioNc, looking for crate
+#Found crate in /tmp/.tmpuHioNc/aes
+#Diffing /tmp/.tmpPd1yB9/aes-0.8.4 and /tmp/.tmpuHioNc/aes
+#Files /tmp/.tmpPd1yB9/aes-0.8.4/Cargo.toml and /tmp/.tmpuHioNc/aes/Cargo.toml differ
+#...
 ```

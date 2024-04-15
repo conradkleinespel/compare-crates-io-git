@@ -1,12 +1,14 @@
+use std::collections::VecDeque;
 use flate2::read::GzDecoder;
 use git2::{Oid, Reference, Repository, Sort};
 use serde::Deserialize;
 use std::env::args;
-use std::fs::File;
+use std::fs::{DirEntry, File, ReadDir};
 use std::io::{Cursor, Read};
 use std::path::Path;
 use std::process::Command;
 use tar::Archive;
+use toml::de::Error;
 use url::Url;
 
 #[derive(Deserialize)]
@@ -16,6 +18,7 @@ struct CargoToml {
 
 #[derive(Deserialize)]
 struct Package {
+    name: String,
     repository: String,
 }
 
@@ -43,9 +46,15 @@ fn main() {
         .into_path()
         .join(format!("{}-{}", crate_name, crate_version));
 
-    let (repository_url, subpath) =
-        get_repository_and_subpath_from_repository_url(crates_io_path.as_path());
-    println!("Repository is {}, subpath is '{}'", repository_url, subpath);
+    let (repository_url, mut subpath) =
+        match get_repository_and_subpath_from_repository_url(crates_io_path.as_path()) {
+            (Some(repo), path) => (repo, path),
+            _ => {
+                println!("No repository found");
+                return;
+            }
+        };
+    println!("Repository is {}, subpath is {:?}", repository_url, subpath);
 
     let repository = match Repository::clone(repository_url.as_str(), git_tempdir.path()) {
         Err(_) => {
@@ -83,7 +92,74 @@ fn main() {
         }
     }
 
-    show_diffs(crates_io_path.as_path(), git_tempdir.into_path().join(subpath).as_path());
+    // If subpath isn't the path to a crate, look for a crate with the same name anywhere in the git repository
+    let git_crate_path = match subpath.as_ref() {
+        Some(s) => git_tempdir.path().to_path_buf().join(s),
+        None => git_tempdir.path().to_path_buf(),
+    };
+    if !is_path_crate_with_name(git_crate_path.as_path(), crate_name) {
+        println!("No crate found at {}, looking for crate", git_crate_path.as_path().to_str().unwrap());
+        subpath = find_subpath_for_crate_with_name(git_tempdir.path(), crate_name)
+    }
+
+    let git_crate_path = match subpath.as_ref() {
+        Some(s) => git_tempdir.path().to_path_buf().join(s),
+        None => git_tempdir.path().to_path_buf(),
+    };
+
+    println!("Found crate in {}", git_crate_path.as_path().to_str().unwrap());
+    show_diffs(crates_io_path.as_path(), git_crate_path.as_path());
+}
+
+fn find_subpath_for_crate_with_name(path: &Path, crate_name: &str) -> Option<String> {
+    let mut directories: VecDeque<DirEntry> = VecDeque::new();
+
+    let mut rd = path.read_dir().unwrap();
+    if let Some(value) = find_subpath_for_crate_with_name_push_dirs(crate_name, &mut rd, &mut directories) {
+        return Some(value);
+    }
+
+    while let Some(dir_entry) = directories.pop_front() {
+        let mut rd = dir_entry.path().read_dir().unwrap();
+        if let Some(value) = find_subpath_for_crate_with_name_push_dirs(crate_name, &mut rd, &mut directories) {
+            return Some(value);
+        }
+    }
+
+    None
+}
+
+fn find_subpath_for_crate_with_name_push_dirs(crate_name: &str, rd: &mut ReadDir, directories: &mut VecDeque<DirEntry>) -> Option<String> {
+    while let Some(dir_entry) = rd.next() {
+        let item = dir_entry.unwrap();
+        let metadata = item.metadata().unwrap();
+
+        if metadata.is_file() && item.file_name().to_str().unwrap() == "Cargo.toml" {
+            let cargo_toml_dir = item.path().parent().unwrap().to_path_buf();
+            if is_path_crate_with_name(cargo_toml_dir.as_path(), crate_name) {
+                return Some(cargo_toml_dir.as_path().to_str().unwrap().to_string());
+            }
+        }
+
+        if metadata.is_dir() {
+            directories.push_back(item);
+        }
+    }
+
+    None
+}
+
+fn is_path_crate_with_name(path: &Path, crate_name: &str) -> bool {
+    let cargo_toml = path.join("Cargo.toml");
+
+    if !cargo_toml.is_file() {
+        return false;
+    }
+
+    match parse_cargo_toml(cargo_toml.as_path()) {
+        Err(_) => false,
+        Ok(config) => config.package.name == crate_name,
+    }
 }
 
 fn show_diffs(crates_io_path: &Path, git_path: &Path) {
@@ -97,11 +173,11 @@ fn show_diffs(crates_io_path: &Path, git_path: &Path) {
             | grep -v '^Only in {}' \\
             | grep -v '^Only in {}: Cargo.toml.orig$' \\
             | grep -v '^Only in {}: .cargo_vcs_info.json$'",
-            crates_io_path.to_str().unwrap(),
-            git_path.to_str().unwrap(),
-            git_path.to_str().unwrap(),
-            crates_io_path.to_str().unwrap(),
-            crates_io_path.to_str().unwrap(),
+                crates_io_path.to_str().unwrap(),
+                git_path.to_str().unwrap(),
+                git_path.to_str().unwrap(),
+                crates_io_path.to_str().unwrap(),
+                crates_io_path.to_str().unwrap(),
         ).as_str()
     ]);
 
@@ -189,8 +265,14 @@ fn get_expected_sha1_from_crate(crates_io_path: &Path) -> Option<String> {
     return Some(config.git.sha1.to_string());
 }
 
-fn get_repository_and_subpath_from_repository_url(crates_io_path: &Path) -> (String, String) {
-    let raw_repository_url = get_repository_url_from_cargo_toml(crates_io_path);
+fn get_repository_and_subpath_from_repository_url(crates_io_path: &Path) -> (Option<String>, Option<String>) {
+    let raw_repository_url = match get_repository_url_from_cargo_toml(crates_io_path) {
+        Some(rru) => rru,
+        None => {
+            return (None, None);
+        }
+    };
+
     let url_parsed = Url::parse(raw_repository_url.as_str()).unwrap();
 
     if url_parsed.host_str().unwrap() == "github.com" {
@@ -200,41 +282,46 @@ fn get_repository_and_subpath_from_repository_url(crates_io_path: &Path) -> (Str
             .map(|s| s.to_string())
             .collect();
         return (
-            format!(
+            Some(format!(
                 "{}://{}/{}/{}.git",
                 url_parsed.scheme(),
                 url_parsed.host_str().unwrap(),
                 paths[1],
                 paths[2],
-            ),
+            )),
             if paths.len() >= 6 {
                 // Repository URLs such as https://github.com/org/repo/tree/branch-name/some/path/here
-                paths[5..].join("/")
+                Some(paths[5..].join("/"))
             } else {
-                "".to_string()
+                None
             },
         );
     }
 
     (
-        format!(
+        Some(format!(
             "{}://{}{}.git",
             url_parsed.scheme(),
             url_parsed.host_str().unwrap(),
             url_parsed.path(),
-        ),
-        "".to_string(),
+        )),
+        None,
     )
 }
 
-fn get_repository_url_from_cargo_toml(crates_io_path: &Path) -> String {
-    let mut cargo_toml = File::open(crates_io_path.join("Cargo.toml").to_path_buf()).unwrap();
+fn get_repository_url_from_cargo_toml(crates_io_path: &Path) -> Option<String> {
+    match parse_cargo_toml(crates_io_path.join("Cargo.toml").as_path()) {
+        Err(_) => None,
+        Ok(config) => Some(config.package.repository.to_string()),
+    }
+}
+
+fn parse_cargo_toml(path: &Path) -> Result<CargoToml, Error> {
+    let mut cargo_toml = File::open(path.to_path_buf()).unwrap();
     let mut cargo_toml_content = String::new();
 
     cargo_toml.read_to_string(&mut cargo_toml_content).unwrap();
-    let config: CargoToml = toml::from_str(cargo_toml_content.as_str()).unwrap();
-
-    return config.package.repository.to_string();
+    toml::from_str(cargo_toml_content.as_str())
 }
 
 fn download_crate(name: &str, version: &str, destination: &Path) {
