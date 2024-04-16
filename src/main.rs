@@ -6,7 +6,8 @@ use std::collections::HashMap;
 use std::env::args;
 use std::error::Error;
 use std::fs::File;
-use std::io::{Cursor, Read, Write};
+use std::io::BufRead;
+use std::io::{BufReader, Cursor, Read, Write};
 use std::path::Path;
 use tar::Archive;
 use toml::de::Error as TomlError;
@@ -426,9 +427,16 @@ fn diff_directories(crates_io_path: &Path, git_crate_path: &Path) {
         if let Some(other_hash) = git_crate_file_hashes.get(rel_path) {
             if other_hash != hash {
                 println!(
-                    "Files differ: {} and {}",
+                    "Files differ: {} and {}{}",
                     crates_io_path.join(rel_path).to_str().unwrap(),
                     git_crate_path.join(rel_path).to_str().unwrap(),
+                    if !is_file_utf8(crates_io_path.join(rel_path).as_path())
+                        || !is_file_utf8(git_crate_path.join(rel_path).as_path())
+                    {
+                        ", non utf-8, possibly binary file"
+                    } else {
+                        ""
+                    }
                 );
             }
         }
@@ -437,8 +445,13 @@ fn diff_directories(crates_io_path: &Path, git_crate_path: &Path) {
     for rel_path in crates_io_file_hashes.keys() {
         if !git_crate_file_hashes.contains_key(rel_path) {
             println!(
-                "Only in crates.io: {}",
+                "Only in crates.io: {}{}",
                 crates_io_path.join(rel_path).to_str().unwrap(),
+                if !is_file_utf8(crates_io_path.join(rel_path).as_path()) {
+                    ", non utf-8, possibly binary file"
+                } else {
+                    ""
+                }
             );
         }
     }
@@ -446,9 +459,33 @@ fn diff_directories(crates_io_path: &Path, git_crate_path: &Path) {
     for rel_path in git_crate_file_hashes.keys() {
         if !crates_io_file_hashes.contains_key(rel_path) {
             println!(
-                "Only in git: {}",
+                "Only in git: {}{}",
                 git_crate_path.join(rel_path).to_str().unwrap(),
+                if !is_file_utf8(git_crate_path.join(rel_path).as_path()) {
+                    ", non utf-8, possibly binary file"
+                } else {
+                    ""
+                }
             );
         }
     }
+}
+
+fn is_file_utf8(filename: &Path) -> bool {
+    let file = match File::open(filename) {
+        Err(_) => return false,
+        Ok(f) => f,
+    };
+    let reader = BufReader::new(file);
+
+    for line in reader.lines() {
+        let line = match line {
+            Err(_) => return false,
+            Ok(l) => l,
+        };
+        if std::str::from_utf8(line.as_bytes()).is_err() {
+            return false;
+        }
+    }
+    true
 }
