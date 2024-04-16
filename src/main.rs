@@ -159,8 +159,20 @@ fn main() {
     diff_directories(crates_io_path.as_path(), git_crate_path.as_path());
 }
 
-fn find_subpath_for_crate_with_name(path: &Path, crate_name: &str) -> Option<String> {
-    for entry in WalkDir::new(path).into_iter().filter_map(|e| e.ok()) {
+fn find_subpath_for_crate_with_name(git_path: &Path, crate_name: &str) -> Option<String> {
+    for entry in WalkDir::new(git_path)
+        .into_iter()
+        .filter_map(|e| match e.ok() {
+            Some(entry) => {
+                if entry.path().starts_with(git_path.join(".git")) {
+                    None
+                } else {
+                    Some(entry)
+                }
+            }
+            None => None,
+        })
+    {
         if entry.file_name().to_str().unwrap() == "Cargo.toml" {
             let cargo_toml_dir = entry.path().parent().unwrap().to_path_buf();
             if is_path_crate_with_name(cargo_toml_dir.as_path(), crate_name) {
@@ -373,7 +385,16 @@ fn compute_file_hash(file_path: &Path) -> Option<Vec<u8>> {
 
 fn get_file_hashes(dir: &Path) -> HashMap<String, Vec<u8>> {
     let mut hash_map = HashMap::new();
-    for entry in WalkDir::new(dir).into_iter().filter_map(|e| e.ok()) {
+    for entry in WalkDir::new(dir).into_iter().filter_map(|e| match e.ok() {
+        Some(entry) => {
+            if entry.path().starts_with(dir.join(".git")) {
+                None
+            } else {
+                Some(entry)
+            }
+        }
+        None => None,
+    }) {
         if !entry.file_type().is_file() {
             continue;
         }
