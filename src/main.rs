@@ -160,45 +160,12 @@ fn main() {
 }
 
 fn find_subpath_for_crate_with_name(path: &Path, crate_name: &str) -> Option<String> {
-    let mut directories: VecDeque<DirEntry> = VecDeque::new();
-
-    let mut rd = path.read_dir().unwrap();
-    if let Some(value) =
-        find_subpath_for_crate_with_name_push_dirs(crate_name, &mut rd, &mut directories)
-    {
-        return Some(value);
-    }
-
-    while let Some(dir_entry) = directories.pop_front() {
-        let mut rd = dir_entry.path().read_dir().unwrap();
-        if let Some(value) =
-            find_subpath_for_crate_with_name_push_dirs(crate_name, &mut rd, &mut directories)
-        {
-            return Some(value);
-        }
-    }
-
-    None
-}
-
-fn find_subpath_for_crate_with_name_push_dirs(
-    crate_name: &str,
-    rd: &mut ReadDir,
-    directories: &mut VecDeque<DirEntry>,
-) -> Option<String> {
-    while let Some(dir_entry) = rd.next() {
-        let item = dir_entry.unwrap();
-        let metadata = item.metadata().unwrap();
-
-        if metadata.is_file() && item.file_name().to_str().unwrap() == "Cargo.toml" {
-            let cargo_toml_dir = item.path().parent().unwrap().to_path_buf();
+    for entry in WalkDir::new(path).into_iter().filter_map(|e| e.ok()) {
+        if entry.file_name().to_str().unwrap() == "Cargo.toml" {
+            let cargo_toml_dir = entry.path().parent().unwrap().to_path_buf();
             if is_path_crate_with_name(cargo_toml_dir.as_path(), crate_name) {
                 return Some(cargo_toml_dir.as_path().to_str().unwrap().to_string());
             }
-        }
-
-        if metadata.is_dir() {
-            directories.push_back(item);
         }
     }
 
