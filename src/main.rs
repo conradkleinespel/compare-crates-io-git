@@ -44,18 +44,23 @@ fn main() {
         .tempdir()
         .unwrap()
         .into_path();
-    let crates_io_tempdir = tempfile::Builder::new()
+    let crates_io_path = tempfile::Builder::new()
         .prefix("crates-io-")
         .tempdir()
-        .unwrap();
-    if let Err(err) = download_crate(crate_name, crate_version, crates_io_tempdir.path()) {
-        println!("Couldn't download crate from crates.io: {:?}", err);
+        .unwrap()
+        .into_path();
+    if let Err(err) = download_crate(crate_name, crate_version, crates_io_path.as_path()) {
+        println!(
+            "Couldn't download crate from crates.io: {}, {}",
+            err,
+            err.source()
+                .map(|e| e.to_string())
+                .unwrap_or("no details".to_string())
+        );
         return;
     }
 
-    let crates_io_path = crates_io_tempdir
-        .into_path()
-        .join(format!("{}-{}", crate_name, crate_version));
+    let crates_io_path = crates_io_path.join(format!("{}-{}", crate_name, crate_version));
 
     let cargo_toml = parse_cargo_toml(crates_io_path.join("Cargo.toml").as_path()).unwrap();
 
@@ -383,11 +388,13 @@ fn parse_cargo_toml(path: &Path) -> Result<CargoToml, Error> {
 }
 
 fn download_crate(name: &str, version: &str, destination: &Path) -> std::io::Result<()> {
+    let tgz_file_name = "archive.tar.gz";
     println!(
-        "Downloading {}/{} to {}",
+        "Downloading {}/{} to {}/{}",
         name,
         version,
-        destination.to_str().unwrap()
+        destination.to_str().unwrap(),
+        tgz_file_name,
     );
 
     let url = format!(
@@ -399,6 +406,11 @@ fn download_crate(name: &str, version: &str, destination: &Path) -> std::io::Res
         .bytes()
         .unwrap()
         .to_vec();
+
+    File::create_new(destination.join(tgz_file_name))
+        .unwrap()
+        .write_all(archive.as_slice())
+        .unwrap();
 
     Archive::new(GzDecoder::new(Cursor::new(archive))).unpack(destination)
 }
