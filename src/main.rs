@@ -8,7 +8,7 @@ use std::io::{Cursor, Read};
 use std::path::Path;
 use std::process::Command;
 use tar::Archive;
-use toml::de::Error;
+use toml::de::Error as TomlError;
 use url::Url;
 
 #[derive(Deserialize)]
@@ -379,7 +379,7 @@ fn get_repository_and_subpath_from_repository_url(
     )
 }
 
-fn parse_cargo_toml(path: &Path) -> Result<CargoToml, Error> {
+fn parse_cargo_toml(path: &Path) -> Result<CargoToml, TomlError> {
     let mut cargo_toml = File::open(path.to_path_buf()).unwrap();
     let mut cargo_toml_content = String::new();
 
