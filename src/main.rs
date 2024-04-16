@@ -22,7 +22,7 @@ struct CargoToml {
 #[derive(Deserialize)]
 struct Package {
     name: String,
-    repository: String,
+    repository: Option<String>,
     build: Option<String>,
 }
 
@@ -67,15 +67,22 @@ fn main() {
 
     let cargo_toml = parse_cargo_toml(crates_io_path.join("Cargo.toml").as_path()).unwrap();
 
-    let (repository_url, mut subpath) = match get_repository_and_subpath_from_repository_url(
-        cargo_toml.package.repository.as_str(),
-    ) {
-        (Some(repo), path) => (repo, path),
-        _ => {
-            println!("No repository found");
+    let cargo_toml_repository = match cargo_toml.package.repository {
+        Some(r) => r,
+        None => {
+            println!("No repository URL configured on crate");
             return;
         }
     };
+
+    let (repository_url, mut subpath) =
+        match get_repository_and_subpath_from_repository_url(cargo_toml_repository.as_str()) {
+            (Some(repo), path) => (repo, path),
+            _ => {
+                println!("No repository found");
+                return;
+            }
+        };
     println!("Repository is {}, subpath is {:?}", repository_url, subpath);
 
     let repository = match Repository::clone(repository_url.as_str(), git_path.as_path()) {
