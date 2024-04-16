@@ -1,5 +1,5 @@
 use flate2::read::GzDecoder;
-use git2::{Oid, Reference, Repository, Sort};
+use git2::{Oid, Reference, Repository};
 use md5::Context;
 use serde::Deserialize;
 use std::collections::HashMap;
@@ -102,28 +102,19 @@ fn main() {
     match get_expected_sha1_from_crate(crates_io_path.as_path()) {
         Some(sha1) => {
             println!("Sha1 announced in crates.io is {}", sha1);
-            let commit_in_revwalk = sha1_in_commit_history_on_default_branch_with_revwalk(
-                &repository,
-                &head,
-                sha1.as_str(),
-            );
             let commit_in_descendants = sha1_in_commit_history_on_default_branch_with_descendants(
                 &repository,
                 &head,
                 sha1.as_str(),
             );
-            if commit_in_revwalk && commit_in_descendants {
+            if commit_in_descendants {
                 println!("Commit is in history, checking it out");
                 let commit = repository
                     .find_commit(Oid::from_str(sha1.as_str()).unwrap())
                     .unwrap();
                 repository.checkout_tree(commit.as_object(), None).unwrap();
-            }
-            if !commit_in_revwalk {
-                println!("Commit not in default branch history (using revwalk)")
-            }
-            if !commit_in_descendants {
-                println!("Commit not in default branch history (using descendants)")
+            } else {
+                println!("Commit not in default branch history")
             }
         }
         None => {
@@ -230,39 +221,6 @@ fn is_path_crate_with_name(path: &Path, crate_name: &str) -> bool {
         Err(_) => false,
         Ok(config) => config.package.name == crate_name,
     }
-}
-
-fn sha1_in_commit_history_on_default_branch_with_revwalk(
-    repository: &Repository,
-    head: &Reference,
-    sha1: &str,
-) -> bool {
-    let mut revwalk = repository.revwalk().unwrap();
-    revwalk.push(head.target().unwrap()).unwrap();
-    revwalk.set_sorting(Sort::TOPOLOGICAL | Sort::TIME).unwrap();
-    loop {
-        let current = match revwalk.next() {
-            None => {
-                break;
-            }
-            Some(current) => current,
-        };
-
-        let current = match current {
-            Err(err) => {
-                println!("Revwalk error {:?}", err);
-                break;
-            }
-            Ok(current) => current,
-        };
-
-        if current.to_string() == sha1 {
-            find_and_print_commit(repository, current);
-            return true;
-        }
-    }
-
-    return false;
 }
 
 fn sha1_in_commit_history_on_default_branch_with_descendants(
