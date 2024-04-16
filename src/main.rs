@@ -128,6 +128,33 @@ fn main() {
         }
         None => {
             println!("No sha1 announced in crates.io, crate packaged with --allow-dirty");
+            println!("Trying to find matching version tag on git repository");
+
+            match repository
+                .tag_names(Some(crate_version))
+                .or_else(|_| repository.tag_names(Some(format!("v{}", crate_version).as_str())))
+            {
+                Ok(tags) => match tags.get(0) {
+                    Some(tag) => {
+                        let tag_ref_name = format!("refs/tags/{}", tag);
+                        let tag_oid = repository.refname_to_id(tag_ref_name.as_str()).unwrap();
+                        let commit = repository.find_commit(tag_oid).unwrap();
+                        println!(
+                            "Found matching version tag {} pointing to commit {}: {}",
+                            tag,
+                            commit.id(),
+                            commit.summary().unwrap_or("no commit message")
+                        );
+                        repository.checkout_tree(commit.as_object(), None).unwrap();
+                    }
+                    None => {
+                        println!("No matching version tag found");
+                    }
+                },
+                Err(_) => {
+                    println!("No matching version tag found");
+                }
+            }
         }
     }
 
