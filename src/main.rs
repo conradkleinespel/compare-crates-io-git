@@ -36,7 +36,7 @@ fn main() {
 
     let cargo_toml = parse_cargo_toml(crates_io_path.join("Cargo.toml").as_path()).unwrap();
 
-    let cargo_toml_repository = match cargo_toml.package.repository {
+    let repository = match cargo_toml.package.repository {
         Some(r) => r,
         None => {
             println!("No repository URL configured on crate");
@@ -44,23 +44,14 @@ fn main() {
         }
     };
 
-    let (repository_url, mut subpath) =
-        match get_repository_and_subpath_from_repository_url(cargo_toml_repository.as_str()) {
-            (Some(repo), path) => (repo, path),
-            _ => {
-                println!("No repository found");
-                return;
-            }
-        };
-    println!("Repository is {}, subpath is {:?}", repository_url, subpath);
-
-    let repository = match clone_git_repository(repository_url.as_str()) {
+    let repository = match clone_git_repository(repository.as_str()) {
         Err(err) => {
             println!("Git clone failed {}", err);
             return;
         }
         Ok(repository) => repository,
     };
+    let repository_root = repository.path().parent().unwrap().to_path_buf();
     let head = repository.head().unwrap();
     println!("Default branch is {}", head.shorthand().unwrap());
 
@@ -110,22 +101,24 @@ fn main() {
     }
 
     // If subpath isn't the path to a crate, look for a crate with the same name anywhere in the git repository
-    let git_crate_path = match subpath.as_ref() {
-        Some(s) => repository.path().parent().unwrap().join(s),
-        None => repository.path().parent().unwrap().to_path_buf(),
+    let mut git_crate_path = match cargo_toml.package.repository_subpath {
+        Some(s) => repository_root.join(s),
+        None => repository_root.to_path_buf(),
     };
     if !is_path_crate_with_name(git_crate_path.as_path(), crate_name) {
         println!(
             "No crate found at {}, looking for crate",
             git_crate_path.as_path().to_str().unwrap()
         );
-        subpath = find_subpath_for_crate_with_name(repository.path().parent().unwrap(), crate_name)
+        git_crate_path =
+            match find_subpath_for_crate_with_name(repository_root.as_path(), crate_name) {
+                None => {
+                    println!("No crate found at all, aborting");
+                    return;
+                }
+                Some(p) => p,
+            };
     }
-
-    let git_crate_path = match subpath.as_ref() {
-        Some(s) => repository.path().parent().unwrap().join(s),
-        None => repository.path().parent().unwrap().to_path_buf(),
-    };
 
     if crates_io_path.join("build.rs").is_file() {
         println!("Has build.rs script");

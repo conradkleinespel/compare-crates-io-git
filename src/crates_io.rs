@@ -34,7 +34,7 @@ pub fn get_expected_sha1_from_crate(crates_io_path: &Path) -> Option<String> {
     return Some(config.git.sha1.to_string());
 }
 
-pub fn download_crate(name: &str, version: &str) -> std::io::Result<PathBuf> {
+pub fn download_crate(name: &str, version: &str) -> Result<PathBuf> {
     let crates_io_path = tempfile::Builder::new()
         .prefix("crates-io-")
         .tempdir()

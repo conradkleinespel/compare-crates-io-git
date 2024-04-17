@@ -1,7 +1,6 @@
 use crate::cargo_toml::parse_cargo_toml;
 use git2::{Error, Oid, Reference, Repository};
-use std::path::Path;
-use url::Url;
+use std::path::{Path, PathBuf};
 use walkdir::WalkDir;
 
 pub fn clone_git_repository(repository_url: &str) -> Result<Repository, Error> {
@@ -63,7 +62,7 @@ fn find_and_print_commit(repository: &Repository, sha1: Oid) {
     );
 }
 
-pub fn find_subpath_for_crate_with_name(git_path: &Path, crate_name: &str) -> Option<String> {
+pub fn find_subpath_for_crate_with_name(git_path: &Path, crate_name: &str) -> Option<PathBuf> {
     for entry in WalkDir::new(git_path)
         .into_iter()
         .filter_map(|e| match e.ok() {
@@ -80,7 +79,7 @@ pub fn find_subpath_for_crate_with_name(git_path: &Path, crate_name: &str) -> Op
         if entry.file_name().to_str().unwrap() == "Cargo.toml" {
             let cargo_toml_dir = entry.path().parent().unwrap().to_path_buf();
             if is_path_crate_with_name(cargo_toml_dir.as_path(), crate_name) {
-                return Some(cargo_toml_dir.as_path().to_str().unwrap().to_string());
+                return Some(cargo_toml_dir);
             }
         }
     }
@@ -99,53 +98,4 @@ pub fn is_path_crate_with_name(path: &Path, crate_name: &str) -> bool {
         Err(_) => false,
         Ok(config) => config.package.name == crate_name,
     }
-}
-
-pub fn get_repository_and_subpath_from_repository_url(
-    raw_repository_url: &str,
-) -> (Option<String>, Option<String>) {
-    let url_parsed = Url::parse(raw_repository_url).unwrap();
-
-    if url_parsed.host_str().unwrap() == "github.com" {
-        let paths: Vec<String> = url_parsed
-            .path()
-            .split("/")
-            .map(|s| s.to_string())
-            .collect();
-        return (
-            Some(format!(
-                "{}://{}/{}/{}{}",
-                url_parsed.scheme(),
-                url_parsed.host_str().unwrap(),
-                paths[1],
-                paths[2],
-                if paths[2].ends_with(".git") {
-                    ""
-                } else {
-                    ".git"
-                }
-            )),
-            if paths.len() >= 6 {
-                // Repository URLs such as https://github.com/org/repo/tree/branch-name/some/path/here
-                Some(paths[5..].join("/"))
-            } else {
-                None
-            },
-        );
-    }
-
-    (
-        Some(format!(
-            "{}://{}{}{}",
-            url_parsed.scheme(),
-            url_parsed.host_str().unwrap(),
-            url_parsed.path(),
-            if url_parsed.path().ends_with(".git") {
-                ""
-            } else {
-                ".git"
-            }
-        )),
-        None,
-    )
 }
