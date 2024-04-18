@@ -1,8 +1,13 @@
 [package]
 name = "compare-crates-io-git"
+description = "Compares contents of Git repository and crate on crates.io"
 version = "0.1.0"
 edition = "2021"
 publish = false
+repository = "https://github.com/conradkleinespel/compare-crates-io-git"
+license = "Apache-2.0"
+readme = "README.md"
+authors = ["Conrad Kleinespel <conradk@conradk.com>"]
 
 [dependencies]
 tempfile = "3.10.1"
