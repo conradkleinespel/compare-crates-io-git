@@ -91,12 +91,12 @@ pub fn find_commit_from_git_tag<'repo>(
                 }
             }
             None => {
-                log::error!("No matching version tag found");
+                log::warn!("No matching version tag found");
                 Err(())
             }
         },
         Err(_) => {
-            log::error!("No matching version tag found");
+            log::warn!("No matching version tag found");
             Err(())
         }
     };

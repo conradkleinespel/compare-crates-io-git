@@ -61,8 +61,7 @@ fn main() {
                 .map_err(|_| io::Error::new(ErrorKind::Other, "Couldn't checkout tree to commit"))
         })
     {
-        log::warn!("Could not checkout any version specific commit, staying on latest commit");
-        log::warn!("Error was: {:?}", err);
+        log::warn!("{}, staying on latest commit", err);
     }
 
     // If subpath isn't the path to a crate, look for a crate with the same name anywhere in the git repository
