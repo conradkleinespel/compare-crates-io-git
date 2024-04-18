@@ -1,7 +1,7 @@
 use md5::Context;
 use std::collections::HashMap;
 use std::fs::File;
-use std::io::Read;
+use std::io::{BufRead, BufReader, Read};
 use std::path::Path;
 use walkdir::WalkDir;
 
@@ -21,8 +21,8 @@ pub fn diff_directories(crates_io_path: &Path, git_crate_path: &Path) {
                     "Files differ: {} and {}{}",
                     crates_io_path.join(rel_path).to_str().unwrap(),
                     git_crate_path.join(rel_path).to_str().unwrap(),
-                    if !crate::is_file_utf8(crates_io_path.join(rel_path).as_path())
-                        || !crate::is_file_utf8(git_crate_path.join(rel_path).as_path())
+                    if !is_file_utf8(crates_io_path.join(rel_path).as_path())
+                        || !is_file_utf8(git_crate_path.join(rel_path).as_path())
                     {
                         ", non utf-8, possibly binary file"
                     } else {
@@ -38,7 +38,7 @@ pub fn diff_directories(crates_io_path: &Path, git_crate_path: &Path) {
             println!(
                 "Only in crates.io: {}{}",
                 crates_io_path.join(rel_path).to_str().unwrap(),
-                if !crate::is_file_utf8(crates_io_path.join(rel_path).as_path()) {
+                if !is_file_utf8(crates_io_path.join(rel_path).as_path()) {
                     ", non utf-8, possibly binary file"
                 } else {
                     ""
@@ -52,7 +52,7 @@ pub fn diff_directories(crates_io_path: &Path, git_crate_path: &Path) {
             println!(
                 "Only in git: {}{}",
                 git_crate_path.join(rel_path).to_str().unwrap(),
-                if !crate::is_file_utf8(git_crate_path.join(rel_path).as_path()) {
+                if !is_file_utf8(git_crate_path.join(rel_path).as_path()) {
                     ", non utf-8, possibly binary file"
                 } else {
                     ""
@@ -104,4 +104,23 @@ fn get_file_hashes(dir: &Path) -> HashMap<String, Vec<u8>> {
         }
     }
     hash_map
+}
+
+fn is_file_utf8(filename: &Path) -> bool {
+    let file = match File::open(filename) {
+        Err(_) => return false,
+        Ok(f) => f,
+    };
+    let reader = BufReader::new(file);
+
+    for line in reader.lines() {
+        let line = match line {
+            Err(_) => return false,
+            Ok(l) => l,
+        };
+        if std::str::from_utf8(line.as_bytes()).is_err() {
+            return false;
+        }
+    }
+    true
 }

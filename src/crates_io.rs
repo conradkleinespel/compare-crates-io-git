@@ -23,15 +23,15 @@ pub fn parse_cargo_vcs_info_json(path: &Path) -> Result<CargoVcsInfoJson> {
     serde_json::from_str(cargo_vcs_info_json_content.as_str()).map_err(|err| Error::from(err))
 }
 
-pub fn get_expected_sha1_from_crate(crates_io_path: &Path) -> Option<String> {
+pub fn get_expected_sha1_from_crate(crates_io_path: &Path) -> Result<Option<String>> {
     let cargo_vcs_info_path = crates_io_path.join(".cargo_vcs_info.json");
     if !cargo_vcs_info_path.is_file() {
-        return None;
+        return Ok(None);
     }
 
-    let config = parse_cargo_vcs_info_json(cargo_vcs_info_path.as_path()).unwrap();
+    let config = parse_cargo_vcs_info_json(cargo_vcs_info_path.as_path())?;
 
-    return Some(config.git.sha1.to_string());
+    return Ok(Some(config.git.sha1.to_string()));
 }
 
 pub fn download_crate(name: &str, version: &str) -> Result<PathBuf> {

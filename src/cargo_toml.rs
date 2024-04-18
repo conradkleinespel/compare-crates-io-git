@@ -18,10 +18,10 @@ pub struct Package {
 }
 
 pub fn parse_cargo_toml(path: &Path) -> Result<CargoToml> {
-    let mut cargo_toml = File::open(path.to_path_buf()).unwrap();
+    let mut cargo_toml = File::open(path.to_path_buf())?;
     let mut cargo_toml_content = String::new();
 
-    cargo_toml.read_to_string(&mut cargo_toml_content).unwrap();
+    cargo_toml.read_to_string(&mut cargo_toml_content)?;
 
     let mut config: CargoToml = toml::from_str(cargo_toml_content.as_str())
         .map_err(|_| Error::new(ErrorKind::InvalidData, "could not deserialize Cargo.toml"))?;
@@ -33,10 +33,19 @@ pub fn parse_cargo_toml(path: &Path) -> Result<CargoToml> {
                 "no repository found in Cargo.toml",
             ))
         }
-        Some(repository) => (
-            get_repository_from_repository_url(repository),
-            get_subpath_from_repository_url(repository.as_str()),
-        ),
+        Some(repository) => {
+            let url = Url::parse(repository).map_err(|_| {
+                Error::new(
+                    ErrorKind::InvalidData,
+                    "could not parse repository URL in Cargo.toml",
+                )
+            })?;
+
+            (
+                get_repository_from_repository_url(&url),
+                get_subpath_from_repository_url(&url),
+            )
+        }
     };
 
     config.package.repository = Some(repository.clone());
@@ -50,62 +59,42 @@ pub fn parse_cargo_toml(path: &Path) -> Result<CargoToml> {
     Ok(config)
 }
 
-pub fn get_repository_from_repository_url(raw_repository_url: &str) -> String {
-    let url_parsed = Url::parse(raw_repository_url).unwrap();
+pub fn get_repository_from_repository_url(url: &Url) -> String {
+    if url.as_str().ends_with(".git") {
+        return url.as_str().to_string();
+    }
 
-    if url_parsed.host_str().unwrap() == "github.com" {
-        let paths: Vec<String> = url_parsed
-            .path()
-            .split("/")
-            .map(|s| s.to_string())
-            .collect();
+    if url.host_str().unwrap() == "github.com" {
+        let paths: Vec<String> = url.path().split("/").map(|s| s.to_string()).collect();
 
-        format!(
+        let needs_git_append = paths[2].ends_with(".git");
+
+        return format!(
             "{}://{}/{}/{}{}",
-            url_parsed.scheme(),
-            url_parsed.host_str().unwrap(),
+            url.scheme(),
+            url.host_str().unwrap(),
             paths[1],
             paths[2],
-            if paths[2].ends_with(".git") {
-                ""
-            } else {
-                ".git"
-            }
-        )
-    } else {
-        format!(
-            "{}://{}{}{}",
-            url_parsed.scheme(),
-            url_parsed.host_str().unwrap(),
-            url_parsed.path(),
-            if url_parsed.path().ends_with(".git") {
-                ""
-            } else {
-                ".git"
-            }
-        )
+            if needs_git_append { "" } else { ".git" }
+        );
     }
+
+    url.as_str().to_string()
 }
 
-pub fn get_subpath_from_repository_url(raw_repository_url: &str) -> Option<String> {
-    let url_parsed = Url::parse(raw_repository_url).unwrap();
-
-    if url_parsed.host_str().unwrap() == "github.com" {
-        let paths: Vec<String> = url_parsed
-            .path()
-            .split("/")
-            .map(|s| s.to_string())
-            .collect();
-
-        println!("{:?}", paths);
-
-        if paths.len() >= 6 {
-            // Repository URLs such as https://github.com/org/repo/tree/branch-name/some/path/here
-            Some(paths[5..].join("/"))
-        } else {
-            None
-        }
-    } else {
-        None
+pub fn get_subpath_from_repository_url(url: &Url) -> Option<String> {
+    if url.as_str().ends_with(".git") {
+        return None;
     }
+
+    if url.host_str().unwrap() == "github.com" {
+        let paths: Vec<String> = url.path().split("/").map(|s| s.to_string()).collect();
+
+        // Repository URLs such as https://github.com/org/repo/tree/branch-name/some/path/here
+        if paths.len() >= 6 {
+            return Some(paths[5..].join("/"));
+        }
+        return None;
+    }
+    None
 }

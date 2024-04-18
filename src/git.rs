@@ -1,7 +1,4 @@
-use crate::cargo_toml::parse_cargo_toml;
-use git2::{Error, Oid, Reference, Repository};
-use std::path::{Path, PathBuf};
-use walkdir::WalkDir;
+use git2::{Commit, Error, Oid, Reference, Repository};
 
 pub fn clone_git_repository(repository_url: &str) -> Result<Repository, Error> {
     let git_path = tempfile::Builder::new()
@@ -62,40 +59,45 @@ fn find_and_print_commit(repository: &Repository, sha1: Oid) {
     );
 }
 
-pub fn find_subpath_for_crate_with_name(git_path: &Path, crate_name: &str) -> Option<PathBuf> {
-    for entry in WalkDir::new(git_path)
-        .into_iter()
-        .filter_map(|e| match e.ok() {
-            Some(entry) => {
-                if entry.path().starts_with(git_path.join(".git")) {
-                    None
-                } else {
-                    Some(entry)
+pub fn find_commit_from_git_tag<'repo>(
+    crate_version: &str,
+    repository: &'repo Repository,
+) -> Result<Commit<'repo>, ()> {
+    println!("No sha1 announced in crates.io, crate packaged with --allow-dirty");
+    println!("Trying to find matching version tag on git repository");
+
+    return match repository
+        .tag_names(Some(crate_version))
+        .or_else(|_| repository.tag_names(Some(format!("v{}", crate_version).as_str())))
+    {
+        Ok(tags) => match tags.get(0) {
+            Some(tag) => {
+                let tag_ref_name = format!("refs/tags/{}", tag);
+                let tag_oid = repository.refname_to_id(tag_ref_name.as_str()).unwrap();
+                match repository.find_commit(tag_oid) {
+                    Ok(commit) => {
+                        println!(
+                            "Found matching version tag {} pointing to commit {}: {}",
+                            tag,
+                            commit.id(),
+                            commit.summary().unwrap_or("no commit message")
+                        );
+                        Ok(commit)
+                    }
+                    Err(_) => {
+                        println!("Couldnt find commit even though tag was found");
+                        Err(())
+                    }
                 }
             }
-            None => None,
-        })
-    {
-        if entry.file_name().to_str().unwrap() == "Cargo.toml" {
-            let cargo_toml_dir = entry.path().parent().unwrap().to_path_buf();
-            if is_path_crate_with_name(cargo_toml_dir.as_path(), crate_name) {
-                return Some(cargo_toml_dir);
+            None => {
+                println!("No matching version tag found");
+                Err(())
             }
+        },
+        Err(_) => {
+            println!("No matching version tag found");
+            Err(())
         }
-    }
-
-    None
-}
-
-pub fn is_path_crate_with_name(path: &Path, crate_name: &str) -> bool {
-    let cargo_toml = path.join("Cargo.toml");
-
-    if !cargo_toml.is_file() {
-        return false;
-    }
-
-    match parse_cargo_toml(cargo_toml.as_path()) {
-        Err(_) => false,
-        Ok(config) => config.package.name == crate_name,
-    }
+    };
 }
