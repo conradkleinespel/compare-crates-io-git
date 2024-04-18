@@ -24,20 +24,20 @@ pub fn parse_cargo_toml(path: &Path) -> Result<CargoToml> {
     cargo_toml.read_to_string(&mut cargo_toml_content)?;
 
     let mut config: CargoToml = toml::from_str(cargo_toml_content.as_str())
-        .map_err(|_| Error::new(ErrorKind::InvalidData, "could not deserialize Cargo.toml"))?;
+        .map_err(|_| Error::new(ErrorKind::InvalidData, "Couldn't deserialize Cargo.toml"))?;
 
     let (repository, subpath) = match config.package.repository.as_ref() {
         None => {
             return Err(Error::new(
                 ErrorKind::InvalidData,
-                "no repository found in Cargo.toml",
+                "No repository found in Cargo.toml",
             ))
         }
         Some(repository) => {
             let url = Url::parse(repository).map_err(|_| {
                 Error::new(
                     ErrorKind::InvalidData,
-                    "could not parse repository URL in Cargo.toml",
+                    "Couldn't parse repository URL in Cargo.toml",
                 )
             })?;
 
@@ -51,9 +51,10 @@ pub fn parse_cargo_toml(path: &Path) -> Result<CargoToml> {
     config.package.repository = Some(repository.clone());
     config.package.repository_subpath = subpath;
 
-    println!(
+    log::info!(
         "Repository is {}, subpath is {:?}",
-        repository, &config.package.repository_subpath
+        repository,
+        &config.package.repository_subpath
     );
 
     Ok(config)

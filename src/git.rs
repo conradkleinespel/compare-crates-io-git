@@ -9,12 +9,12 @@ pub fn clone_git_repository(repository_url: &str) -> Result<Repository, Error> {
 
     let repository = match Repository::clone(repository_url, git_path.as_path()) {
         Err(err) => {
-            println!("Invalid repository");
+            log::error!("Invalid repository");
             return Err(err);
         }
         Ok(repository) => repository,
     };
-    println!(
+    log::info!(
         "Cloned repository to {}",
         repository.path().parent().unwrap().to_str().unwrap()
     );
@@ -51,7 +51,7 @@ fn find_and_print_commit(repository: &Repository, sha1: Oid) {
     let commit = repository.find_commit(sha1).unwrap();
     let commit_datetime = chrono::DateTime::from_timestamp(commit.time().seconds(), 0).unwrap();
 
-    println!(
+    log::info!(
         "Sha1 commit was {} ({}): {}",
         commit.id(),
         commit_datetime.format("%d/%m/%Y %H:%M"),
@@ -63,8 +63,8 @@ pub fn find_commit_from_git_tag<'repo>(
     crate_version: &str,
     repository: &'repo Repository,
 ) -> Result<Commit<'repo>, ()> {
-    println!("No sha1 announced in crates.io, crate packaged with --allow-dirty");
-    println!("Trying to find matching version tag on git repository");
+    log::warn!("No sha1 announced in crates.io, crate packaged with --allow-dirty");
+    log::info!("Trying to find matching version tag on git repository");
 
     return match repository
         .tag_names(Some(crate_version))
@@ -76,27 +76,27 @@ pub fn find_commit_from_git_tag<'repo>(
                 let tag_oid = repository.refname_to_id(tag_ref_name.as_str()).unwrap();
                 match repository.find_commit(tag_oid) {
                     Ok(commit) => {
-                        println!(
+                        log::info!(
                             "Found matching version tag {} pointing to commit {}: {}",
                             tag,
                             commit.id(),
-                            commit.summary().unwrap_or("no commit message")
+                            commit.summary().unwrap_or("No commit message")
                         );
                         Ok(commit)
                     }
                     Err(_) => {
-                        println!("Couldnt find commit even though tag was found");
+                        log::error!("Couldnt find commit even though tag was found");
                         Err(())
                     }
                 }
             }
             None => {
-                println!("No matching version tag found");
+                log::error!("No matching version tag found");
                 Err(())
             }
         },
         Err(_) => {
-            println!("No matching version tag found");
+            log::error!("No matching version tag found");
             Err(())
         }
     };

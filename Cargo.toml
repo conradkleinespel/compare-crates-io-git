@@ -17,3 +17,5 @@ flate2 = "1.0.28"
 chrono = { version = "0.4.37", features = ["now"] }
 walkdir = "2.5.0"
 md5 = "0.7.0"
+log = "0.4.21"
+env_logger = "0.11.3"

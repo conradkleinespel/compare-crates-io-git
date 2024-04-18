@@ -6,7 +6,7 @@ use std::path::Path;
 use walkdir::WalkDir;
 
 pub fn diff_directories(crates_io_path: &Path, git_crate_path: &Path) {
-    println!(
+    log::info!(
         "Diffing {} and {}",
         crates_io_path.to_str().unwrap(),
         git_crate_path.to_str().unwrap()
@@ -17,7 +17,7 @@ pub fn diff_directories(crates_io_path: &Path, git_crate_path: &Path) {
     for (rel_path, hash) in &crates_io_file_hashes {
         if let Some(other_hash) = git_crate_file_hashes.get(rel_path) {
             if other_hash != hash {
-                println!(
+                log::info!(
                     "Files differ: {} and {}{}",
                     crates_io_path.join(rel_path).to_str().unwrap(),
                     git_crate_path.join(rel_path).to_str().unwrap(),
@@ -35,7 +35,7 @@ pub fn diff_directories(crates_io_path: &Path, git_crate_path: &Path) {
 
     for rel_path in crates_io_file_hashes.keys() {
         if !git_crate_file_hashes.contains_key(rel_path) {
-            println!(
+            log::info!(
                 "Only in crates.io: {}{}",
                 crates_io_path.join(rel_path).to_str().unwrap(),
                 if !is_file_utf8(crates_io_path.join(rel_path).as_path()) {
@@ -49,7 +49,7 @@ pub fn diff_directories(crates_io_path: &Path, git_crate_path: &Path) {
 
     for rel_path in git_crate_file_hashes.keys() {
         if !crates_io_file_hashes.contains_key(rel_path) {
-            println!(
+            log::info!(
                 "Only in git: {}{}",
                 git_crate_path.join(rel_path).to_str().unwrap(),
                 if !is_file_utf8(git_crate_path.join(rel_path).as_path()) {
