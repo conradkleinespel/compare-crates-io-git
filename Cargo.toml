@@ -8,6 +8,11 @@ repository = "https://github.com/conradkleinespel/compare-crates-io-git"
 license = "Apache-2.0"
 readme = "README.md"
 authors = ["Conrad Kleinespel <conradk@conradk.com>"]
+include = [
+    "src/*.rs",
+    "Cargo.toml",
+    "README.md",
+]
 
 [dependencies]
 tempfile = "3.10.1"
