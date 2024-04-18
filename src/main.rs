@@ -32,7 +32,16 @@ fn main() {
         Ok(path) => path,
     };
 
-    let cargo_toml = parse_cargo_toml(crates_io_path.join("Cargo.toml").as_path()).unwrap();
+    let cargo_toml = match parse_cargo_toml(crates_io_path.join("Cargo.toml").as_path()) {
+        Err(err) => {
+            log::error!(
+                "Invalid Cargo.toml file in crate from crates.io, {}",
+                err.to_string()
+            );
+            return;
+        }
+        Ok(cargo_toml) => cargo_toml,
+    };
 
     let repository = match cargo_toml.package.repository {
         Some(r) => r,

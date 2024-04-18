@@ -42,8 +42,8 @@ pub fn parse_cargo_toml(path: &Path) -> Result<CargoToml> {
             })?;
 
             (
-                get_repository_from_repository_url(&url),
-                get_subpath_from_repository_url(&url),
+                get_repository_from_repository_url(&url)?,
+                get_subpath_from_repository_url(&url)?,
             )
         }
     };
@@ -60,42 +60,49 @@ pub fn parse_cargo_toml(path: &Path) -> Result<CargoToml> {
     Ok(config)
 }
 
-pub fn get_repository_from_repository_url(url: &Url) -> String {
+pub fn get_repository_from_repository_url(url: &Url) -> Result<String> {
     if url.as_str().ends_with(".git") {
-        return url.as_str().to_string();
+        return Ok(url.as_str().to_string());
     }
 
-    if url.host_str().unwrap() == "github.com" {
+    if url.host_str().ok_or(missing_host_error())? == "github.com" {
         let paths: Vec<String> = url.path().split("/").map(|s| s.to_string()).collect();
 
         let needs_git_append = paths[2].ends_with(".git");
 
-        return format!(
+        return Ok(format!(
             "{}://{}/{}/{}{}",
             url.scheme(),
-            url.host_str().unwrap(),
+            url.host_str().ok_or(missing_host_error())?,
             paths[1],
             paths[2],
             if needs_git_append { "" } else { ".git" }
-        );
+        ));
     }
 
-    url.as_str().to_string()
+    Ok(url.as_str().to_string())
 }
 
-pub fn get_subpath_from_repository_url(url: &Url) -> Option<String> {
+pub fn get_subpath_from_repository_url(url: &Url) -> Result<Option<String>> {
     if url.as_str().ends_with(".git") {
-        return None;
+        return Ok(None);
     }
 
-    if url.host_str().unwrap() == "github.com" {
+    if url.host_str().ok_or(missing_host_error())? == "github.com" {
         let paths: Vec<String> = url.path().split("/").map(|s| s.to_string()).collect();
 
         // Repository URLs such as https://github.com/org/repo/tree/branch-name/some/path/here
         if paths.len() >= 6 {
-            return Some(paths[5..].join("/"));
+            return Ok(Some(paths[5..].join("/")));
         }
-        return None;
+        return Ok(None);
     }
-    None
+    Ok(None)
+}
+
+fn missing_host_error() -> Error {
+    Error::new(
+        ErrorKind::InvalidData,
+        "no host in repository url from Cargo.toml",
+    )
 }
