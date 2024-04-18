@@ -18,7 +18,7 @@ pub struct Package {
 }
 
 pub fn parse_cargo_toml(path: &Path) -> Result<CargoToml> {
-    let mut cargo_toml = File::open(path.to_path_buf())?;
+    let mut cargo_toml = File::open(path)?;
     let mut cargo_toml_content = String::new();
 
     cargo_toml.read_to_string(&mut cargo_toml_content)?;
@@ -66,7 +66,7 @@ pub fn get_repository_from_repository_url(url: &Url) -> Result<String> {
     }
 
     if url.host_str().ok_or(missing_host_error())? == "github.com" {
-        let paths: Vec<String> = url.path().split("/").map(|s| s.to_string()).collect();
+        let paths: Vec<String> = url.path().split('/').map(|s| s.to_string()).collect();
 
         let needs_git_append = paths[2].ends_with(".git");
 
@@ -89,7 +89,7 @@ pub fn get_subpath_from_repository_url(url: &Url) -> Result<Option<String>> {
     }
 
     if url.host_str().ok_or(missing_host_error())? == "github.com" {
-        let paths: Vec<String> = url.path().split("/").map(|s| s.to_string()).collect();
+        let paths: Vec<String> = url.path().split('/').map(|s| s.to_string()).collect();
 
         // Repository URLs such as https://github.com/org/repo/tree/branch-name/some/path/here
         if paths.len() >= 6 {

@@ -11,7 +11,7 @@ use log::LevelFilter;
 use std::env::args;
 use std::io::{self, ErrorKind};
 use std::path::{Path, PathBuf};
-use walkdir::WalkDir;
+use walkdir::{DirEntry, WalkDir};
 
 fn main() {
     env_logger::builder()
@@ -126,7 +126,7 @@ fn get_commit_to_checkout<'repo>(
     match sha1 {
         Some(sha1) => {
             log::info!("Sha1 announced in crates.io is {}", sha1);
-            if !is_commit_head_or_head_ancestor(&repository, &head, sha1.as_str()) {
+            if !is_commit_head_or_head_ancestor(repository, head, sha1.as_str()) {
                 return Err(io::Error::new(
                     ErrorKind::NotFound,
                     "Commit not in default branch history",
@@ -150,18 +150,11 @@ fn get_commit_to_checkout<'repo>(
 }
 
 pub fn find_crate(git_path: &Path, crate_name: &str) -> Option<PathBuf> {
+    let filter_git_directory = |entry: &DirEntry| !entry.path().starts_with(git_path.join(".git"));
+
     for entry in WalkDir::new(git_path)
         .into_iter()
-        .filter_map(|e| match e.ok() {
-            Some(entry) => {
-                if entry.path().starts_with(git_path.join(".git")) {
-                    None
-                } else {
-                    Some(entry)
-                }
-            }
-            None => None,
-        })
+        .filter_map(|e| e.ok().filter(filter_git_directory))
     {
         if entry.file_name().to_str().unwrap() == "Cargo.toml" {
             if let Ok(config) = parse_cargo_toml(entry.path()) {

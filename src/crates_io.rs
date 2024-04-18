@@ -9,6 +9,7 @@ use tar::Archive;
 #[derive(Deserialize)]
 pub struct CargoVcsInfoJson {
     pub git: CargoVcsInfoJsonGit,
+    // TODO: path_in_vcs: Option<String>
 }
 
 #[derive(Deserialize)]
@@ -17,11 +18,11 @@ pub struct CargoVcsInfoJsonGit {
 }
 
 pub fn parse_cargo_vcs_info_json(path: &Path) -> Result<CargoVcsInfoJson> {
-    let mut cargo_vcs_info_json = File::open(path.to_path_buf())?;
+    let mut cargo_vcs_info_json = File::open(path)?;
     let mut cargo_vcs_info_json_content = String::new();
 
     cargo_vcs_info_json.read_to_string(&mut cargo_vcs_info_json_content)?;
-    serde_json::from_str(cargo_vcs_info_json_content.as_str()).map_err(|err| Error::from(err))
+    serde_json::from_str(cargo_vcs_info_json_content.as_str()).map_err(Error::from)
 }
 
 pub fn get_expected_sha1_from_crate(crates_io_path: &Path) -> Result<Option<String>> {
@@ -32,7 +33,7 @@ pub fn get_expected_sha1_from_crate(crates_io_path: &Path) -> Result<Option<Stri
 
     let config = parse_cargo_vcs_info_json(cargo_vcs_info_path.as_path())?;
 
-    return Ok(Some(config.git.sha1.to_string()));
+    Ok(Some(config.git.sha1.to_string()))
 }
 
 pub fn download_crate(name: &str, version: &str) -> Result<PathBuf> {

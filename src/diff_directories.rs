@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use std::fs::File;
 use std::io::{BufRead, BufReader, Read};
 use std::path::Path;
-use walkdir::WalkDir;
+use walkdir::{DirEntry, WalkDir};
 
 pub fn diff_directories(crates_io_path: &Path, git_crate_path: &Path) {
     log::info!(
@@ -77,28 +77,18 @@ fn compute_file_hash(file_path: &Path) -> Option<Vec<u8>> {
 }
 
 fn get_file_hashes(dir: &Path) -> HashMap<String, Vec<u8>> {
+    let filter_git_directory = |entry: &DirEntry| !entry.path().starts_with(dir.join(".git"));
+
     let mut hash_map = HashMap::new();
-    for entry in WalkDir::new(dir).into_iter().filter_map(|e| match e.ok() {
-        Some(entry) => {
-            if entry.path().starts_with(dir.join(".git")) {
-                None
-            } else {
-                Some(entry)
-            }
-        }
-        None => None,
-    }) {
+    for entry in WalkDir::new(dir)
+        .into_iter()
+        .filter_map(|e| e.ok().filter(filter_git_directory))
+    {
         if !entry.file_type().is_file() {
             continue;
         }
-        if let Some(stripped_path) = entry
-            .path()
-            .strip_prefix(dir)
-            .ok()
-            .map(|p| p.to_str())
-            .flatten()
-        {
-            if let Some(file_hash) = compute_file_hash(&entry.path()) {
+        if let Some(stripped_path) = entry.path().strip_prefix(dir).ok().and_then(|p| p.to_str()) {
+            if let Some(file_hash) = compute_file_hash(entry.path()) {
                 hash_map.insert(stripped_path.to_owned(), file_hash);
             }
         }
